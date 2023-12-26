@@ -35,12 +35,20 @@ void epd_setup()
 
   // 设置字体和颜色
   display.fillScreen(GxEPD_WHITE);
-  u8g2.setFont(u8g2_font_helvR14_tf);
   u8g2.setFontMode(0);
   u8g2.setBackgroundColor(GxEPD_WHITE);
   u8g2.setForegroundColor(GxEPD_BLACK);
 
-  // 显示
   display.firstPage();
+
+  // 欢迎
+  u8g2.setCursor(COMPONENT_TIME_X, COMPONENT_TIME_Y);
+  u8g2.setFont(u8g2_font_helvB24_tr);
+  u8g2.print("Hello");
+  u8g2.setCursor(COMPONENT_DATE_X, COMPONENT_DATE_Y);
+  u8g2.setFont(u8g2_font_helvR24_tr);
+  u8g2.print("World");
+
+  // 显示
   display.display();
 }

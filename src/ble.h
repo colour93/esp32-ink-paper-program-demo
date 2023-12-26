@@ -9,10 +9,10 @@ BLECharacteristic *pCharacteristic;
 BLEServer *pServer;
 
 // China Standard Time (Beijing)
-TimeChangeRule chinaDST = {"CST", Last, Sun, Sep, 2, 480}; // China Standard Time (no daylight saving time)
-TimeChangeRule chinaSTD = {"CST", Last, Sun, Sep, 2, 480}; // China Standard Time
+TimeChangeRule chinaDST = {"CST", Last, Sun, Sep, 2, 480};
+TimeChangeRule chinaSTD = {"CST", Last, Sun, Sep, 2, 480};
 Timezone chinaTime(chinaDST, chinaSTD);
-TimeChangeRule *tcr; // pointer to the time change rule, use to get TZ abbrev
+TimeChangeRule *tcr;
 
 String bleName = "93_ESP32_INK_PAPER";
 
@@ -22,10 +22,17 @@ String bleName = "93_ESP32_INK_PAPER";
 unsigned int ts;
 unsigned int ts_flag;
 
+char rawTimeString[12];
+char rawDateString[64];
+char rawWeekdayString[12];
+
 void updateClock(const unsigned int timestamp, const boolean sync = false);
 
 void updateClock(const unsigned int timestamp, const boolean sync)
 {
+
+  if (sync)
+    display.fillScreen(GxEPD_WHITE);
 
   ts = timestamp;
   ts_flag = millis();
@@ -46,18 +53,42 @@ void updateClock(const unsigned int timestamp, const boolean sync)
   if (sync)
     Serial.println("Time update: " + String(dateString) + " -- " + String(timeString) + " -- " + String(weekdayString));
 
+  char updateFlag = 0;
+
   // 在屏幕上显示时间
-  u8g2.setCursor(15, 45);
-  u8g2.setFont(u8g2_font_helvB24_tr);
-  u8g2.print(timeString);
-  u8g2.setCursor(15, 75);
-  u8g2.setFont(u8g2_font_helvR14_tr);
-  u8g2.print(dateString);
-  u8g2.setCursor(15, 95);
-  u8g2.print(weekdayString);
+  if (strcmp(timeString, rawTimeString))
+  {
+    strcpy(rawTimeString, timeString);
+    display.fillRect(COMPONENT_TIME_X, COMPONENT_TIME_Y, 80, 16, GxEPD_WHITE);
+    u8g2.setCursor(COMPONENT_TIME_X, COMPONENT_TIME_Y);
+    u8g2.setFont(u8g2_font_helvB24_tr);
+    u8g2.print(timeString);
+    updateFlag++;
+  }
+
+  if (strcmp(dateString, rawDateString))
+  {
+    display.fillRect(COMPONENT_DATE_X, COMPONENT_DATE_Y, 80, 8, GxEPD_WHITE);
+    strcpy(rawDateString, dateString);
+    u8g2.setCursor(COMPONENT_DATE_X, COMPONENT_DATE_Y);
+    u8g2.setFont(u8g2_font_helvR14_tr);
+    u8g2.print(dateString);
+    updateFlag++;
+  }
+
+  if (strcmp(weekdayString, rawWeekdayString))
+  {
+    display.fillRect(COMPONENT_WEEKDAY_X, COMPONENT_WEEKDAY_Y, 80, 8, GxEPD_WHITE);
+    strcpy(rawWeekdayString, weekdayString);
+    u8g2.setCursor(COMPONENT_WEEKDAY_X, COMPONENT_WEEKDAY_Y);
+    u8g2.setFont(u8g2_font_helvR14_tr);
+    u8g2.print(weekdayString);
+    updateFlag++;
+  }
 
   // 显示到屏幕
-  display.display(1);
+  if (updateFlag > 0)
+    display.display(sync ? 0 : 1);
 }
 
 // BLE服务器回调类
@@ -66,11 +97,16 @@ class MyServerCallbacks : public BLEServerCallbacks
   void onConnect(BLEServer *pServer)
   {
     Serial.println("Device connected"); // 设备连接时的处理
+    display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, epd_bitmap_ble_connect, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
+    display.display(1);
   };
 
   void onDisconnect(BLEServer *pServer)
   {
     Serial.println("Device disconnected"); // 设备断开连接时的处理
+    display.fillRect(ICON_BLE_X, ICON_BLE_Y, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_WHITE);
+    display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, epd_bitmap_ble_on, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
+    display.display(1);
   }
 };
 
@@ -93,6 +129,12 @@ void ble_setup()
   BLEDevice::init(bleName.c_str()); // 初始化BLE设备
 
   Serial.println("BLE init, device name: " + bleName);
+
+  display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, epd_bitmap_ble_on, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
+  u8g2.setCursor(15, 100);
+  u8g2.setFont(u8g2_font_helvR10_tr);
+  u8g2.print("Device: " + bleName);
+  display.display(1);
 
   BLEServer *pServer = BLEDevice::createServer(); // 创建BLE服务器
   pServer->setCallbacks(new MyServerCallbacks()); // 设置服务器回调
