@@ -15,24 +15,29 @@ Timezone chinaTime(chinaDST, chinaSTD);
 TimeChangeRule *tcr;
 
 String bleName = "93_ESP32_INK_PAPER";
+String deviceString = "Device: " + bleName;
 
 #define BLE_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define BLE_SERVICE_UPDATE_TIME_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
+#define BLE_UNINIT 0
+#define BLE_INIT 1
+#define BLE_CONNECTED 2
+
 unsigned int ts;
 unsigned int ts_flag;
+
+char bleStatus = BLE_UNINIT;
 
 char rawTimeString[12];
 char rawDateString[64];
 char rawWeekdayString[12];
 
-void updateClock(const unsigned int timestamp, const boolean sync = false);
-
-void updateClock(const unsigned int timestamp, const boolean sync)
+void updateClock(const unsigned int timestamp, const char sync)
 {
 
   if (sync)
-    display.fillScreen(GxEPD_WHITE);
+    clearScreen();
 
   ts = timestamp;
   ts_flag = millis();
@@ -88,7 +93,33 @@ void updateClock(const unsigned int timestamp, const boolean sync)
 
   // 显示到屏幕
   if (updateFlag > 0)
-    display.display(sync ? 0 : 1);
+    display.display(1);
+}
+
+void ble_statusShow(const char autoDisplay)
+{
+  const unsigned char *pIcon;
+
+  switch (bleStatus)
+  {
+  case BLE_INIT:
+    pIcon = epd_bitmap_ble_on;
+    break;
+
+  case BLE_CONNECTED:
+    pIcon = epd_bitmap_ble_connect;
+    break;
+
+  default:
+    bleStatus = BLE_UNINIT;
+    break;
+  }
+
+  display.fillRect(ICON_BLE_X, ICON_BLE_Y, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_WHITE);
+  if (bleStatus != BLE_UNINIT)
+    display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, pIcon, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
+  if (autoDisplay)
+    display.display(1);
 }
 
 // BLE服务器回调类
@@ -97,16 +128,15 @@ class MyServerCallbacks : public BLEServerCallbacks
   void onConnect(BLEServer *pServer)
   {
     Serial.println("Device connected"); // 设备连接时的处理
-    display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, epd_bitmap_ble_connect, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
-    display.display(1);
+    bleStatus = BLE_CONNECTED;
+    ble_statusShow();
   };
 
   void onDisconnect(BLEServer *pServer)
   {
     Serial.println("Device disconnected"); // 设备断开连接时的处理
-    display.fillRect(ICON_BLE_X, ICON_BLE_Y, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_WHITE);
-    display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, epd_bitmap_ble_on, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
-    display.display(1);
+    bleStatus = BLE_INIT;
+    ble_statusShow();
   }
 };
 
@@ -119,7 +149,7 @@ class TimeUpdateCallbacks : public BLECharacteristicCallbacks
     std::string value = pCharacteristic->getValue();
     Serial.print("Received value: ");
     Serial.println(value.c_str());
-    updateClock(std::stoi(value.c_str()), true);
+    updateClock(std::stoi(value.c_str()), 1);
   }
 };
 
@@ -130,10 +160,12 @@ void ble_setup()
 
   Serial.println("BLE init, device name: " + bleName);
 
-  display.drawInvertedBitmap(ICON_BLE_X, ICON_BLE_Y, epd_bitmap_ble_on, ICON_STATUS_SIZE, ICON_STATUS_SIZE, GxEPD_BLACK);
+  bleStatus = BLE_INIT;
+  ble_statusShow(0);
+
   u8g2.setCursor(15, 100);
   u8g2.setFont(u8g2_font_helvR10_tr);
-  u8g2.print("Device: " + bleName);
+  u8g2.print(deviceString);
   display.display(1);
 
   BLEServer *pServer = BLEDevice::createServer(); // 创建BLE服务器

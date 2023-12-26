@@ -52,3 +52,10 @@ void epd_setup()
   // 显示
   display.display();
 }
+
+void clearScreen()
+{
+  display.fillScreen(GxEPD_WHITE);
+  ble_statusShow(false);
+  display.display();
+}

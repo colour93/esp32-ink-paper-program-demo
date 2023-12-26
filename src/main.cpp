@@ -1,3 +1,4 @@
+#include "functions.h"
 #include "icons.h"
 #include "position.h"
 #include "epd.h"
