@@ -14,31 +14,47 @@ TimeChangeRule chinaSTD = {"CST", Last, Sun, Sep, 2, 480}; // China Standard Tim
 Timezone chinaTime(chinaDST, chinaSTD);
 TimeChangeRule *tcr; // pointer to the time change rule, use to get TZ abbrev
 
-void updateClock(const unsigned int timestamp)
+String bleName = "93_ESP32_INK_PAPER";
+
+#define BLE_SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define BLE_SERVICE_UPDATE_TIME_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+unsigned int ts;
+unsigned int ts_flag;
+
+void updateClock(const unsigned int timestamp, const boolean sync = false);
+
+void updateClock(const unsigned int timestamp, const boolean sync)
 {
-  // 在这里添加更新时钟的代码
-  // 这里假设收到的字符串是表示时间的字符串，例如 "HH:mm:ss"
-  // 你需要解析这个字符串，并将其应用于时钟显示
-  // 我们使用了简单的示例代码，将时间直接显示在屏幕上
+
+  ts = timestamp;
+  ts_flag = millis();
 
   time_t time = chinaTime.toLocal(timestamp, &tcr);
 
   char timeString[12];
   char dateString[64];
+  char weekdayString[12];
 
   sprintf(timeString, "%.2d:%.2d",
           hour(time), minute(time));
-  sprintf(dateString, "%d/%d/%d %s",
-          year(time), month(time), day(time), dayShortStr(weekday(time)));
+  sprintf(dateString, "%d/%d/%d",
+          year(time), month(time), day(time));
+  sprintf(weekdayString, "%s",
+          dayShortStr(weekday(time)));
 
-  Serial.println(timeString);
-  Serial.println(dateString);
+  if (sync)
+    Serial.println("Time update: " + String(dateString) + " -- " + String(timeString) + " -- " + String(weekdayString));
 
   // 在屏幕上显示时间
-  u8g2.setCursor(0, 60);
+  u8g2.setCursor(15, 45);
+  u8g2.setFont(u8g2_font_helvB24_tr);
   u8g2.print(timeString);
-  u8g2.setCursor(0, 80);
+  u8g2.setCursor(15, 75);
+  u8g2.setFont(u8g2_font_helvR14_tr);
   u8g2.print(dateString);
+  u8g2.setCursor(15, 95);
+  u8g2.print(weekdayString);
 
   // 显示到屏幕
   display.display(1);
@@ -59,7 +75,7 @@ class MyServerCallbacks : public BLEServerCallbacks
 };
 
 // BLE特征回调类
-class MyCharacteristicCallbacks : public BLECharacteristicCallbacks
+class TimeUpdateCallbacks : public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
@@ -67,32 +83,31 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks
     std::string value = pCharacteristic->getValue();
     Serial.print("Received value: ");
     Serial.println(value.c_str());
-    // u8g2.setCursor(0, 40);
-    // u8g2.print(F(value.c_str()));
-    // display.display(1);
-    updateClock(std::stoi(value.c_str()));
+    updateClock(std::stoi(value.c_str()), true);
   }
 };
 
 void ble_setup()
 {
 
-  BLEDevice::init("93_ESP32_INK_PAPER"); // 初始化BLE设备
+  BLEDevice::init(bleName.c_str()); // 初始化BLE设备
+
+  Serial.println("BLE init, device name: " + bleName);
 
   BLEServer *pServer = BLEDevice::createServer(); // 创建BLE服务器
   pServer->setCallbacks(new MyServerCallbacks()); // 设置服务器回调
 
   // 创建BLE服务
-  BLEService *pService = pServer->createService(BLEUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b"));
+  BLEService *pService = pServer->createService(BLEUUID(BLE_SERVICE_UUID));
 
   // 创建BLE特征，设置为可读写
   pCharacteristic = pService->createCharacteristic(
-      BLEUUID("beb5483e-36e1-4688-b7f5-ea07361b26a8"),
+      BLEUUID(BLE_SERVICE_UPDATE_TIME_UUID),
       BLECharacteristic::PROPERTY_READ |
           BLECharacteristic::PROPERTY_WRITE);
 
-  pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
-  pCharacteristic->setValue("Hello World!"); // 设置特征的初始值
+  pCharacteristic->setCallbacks(new TimeUpdateCallbacks());
+  pCharacteristic->setValue("time_update"); // 设置特征的初始值
 
   pService->start(); // 启动服务
 

@@ -15,4 +15,9 @@ void setup()
 
 void loop()
 {
+  if (ts && ts_flag)
+  {
+    if ((millis() - ts_flag) / 1000 > 5)
+      updateClock(ts + 5);
+  }
 }
